@@ -6,7 +6,6 @@ const char compile_date[] = __DATE__ " " __TIME__;
 #define DOUBLERESETDETECTOR_DEBUG       true  //false
 
 #include <ESP_DoubleResetDetector.h>    //https://github.com/khoih-prog/ESP_DoubleResetDetector
-#include <driver/adc.h>
 #include <Arduino.h>
 #include <WiFi.h>
 #include <AsyncTCP.h>                   //https://github.com/me-no-dev/AsyncTCP
@@ -39,6 +38,8 @@ uint8_t temprature_sens_read();
 #define LED_OFF     LOW
 #define LED_ON      HIGH
 
+#define VOLTAGE_PIN 36
+
 const char* ssid = "ESP32_UPDATE";
 const char* password = "12345678";
 
@@ -54,8 +55,6 @@ CAN_device_t CAN_cfg;               // CAN Config
 const int rx_queue_size = 10;       // Receive Queue size
 
 void setup(void) {
-  adc1_config_width(ADC_WIDTH_12Bit);
-  adc1_config_channel_atten(ADC1_CHANNEL_0, ADC_ATTEN_0db); //set reference voltage to internal
   Serial.begin(250000);
   SerialBT.begin("ESP32_CPX"); //Bluetooth device name
   Serial.println("The device started, now you can pair it with bluetooth!");
@@ -106,27 +105,24 @@ void setup(void) {
 
   SerialBT.begin("ESP32_CPX");
 
-  long sum = 0;                  // sum of samples taken
-  float voltage = 0.0;           // calculated voltage
-  for (int i = 0; i < 100; i++)
-  {
-    sum += adc1_get_raw(ADC1_CHANNEL_0);
-    delayMicroseconds(100);
-  }
-  // calculate the voltage average
-  voltage = sum / (float)100;
-  voltage = (voltage * 4.75) / 4096.0; //for internal 1.1v reference
-  Serial.println(""); Serial.print("Voltage: "); Serial.println(voltage, 3);
+  float voltage = 0.0;        
+  pinMode(VOLTAGE_PIN, INPUT);
+  voltage = ((analogRead(VOLTAGE_PIN)) * 0.00174 );
+  Serial.print("Power Supply Voltage: "); Serial.println(voltage, 3);
   Serial.print("Compile timestamp: ");
   Serial.println(compile_date);
+  Serial.print("Internal Core Temperature: ");
+  Serial.print((temprature_sens_read() - 32) / 1.8);
+  Serial.println(" ºC");
   delay(4000);
   SerialBT.print("Power Supply Voltage: ");
-  SerialBT.println(voltage);
+  SerialBT.println(voltage, 3);
   SerialBT.print("Compile timestamp: ");
   SerialBT.println(compile_date);
   SerialBT.print("Internal Core Temperature: ");
   SerialBT.print((temprature_sens_read() - 32) / 1.8);
   SerialBT.println(" C");
+  SerialBT.write(0x0D);
 }
 
 void loop(void) {
