@@ -56,7 +56,7 @@ const int rx_queue_size = 10;       // Receive Queue size
 
 void setup(void) {
   Serial.begin(250000);
-  SerialBT.begin("ESP32_CPX"); //Bluetooth device name
+  //SerialBT.begin("ESP32_CPX"); //Bluetooth device name
   Serial.println("The device started, now you can pair it with bluetooth!");
   pinMode(LED_BUILTIN, OUTPUT);
   CAN_cfg.speed = CAN_SPEED_250KBPS;
@@ -89,7 +89,7 @@ void setup(void) {
     Serial.print("IP address: ");
     Serial.println(WiFi.localIP());
     server.on("/", HTTP_GET, [](AsyncWebServerRequest * request) {
-      request->send(200, "text/plain", "Hi! I am ESP32 Interface for CPX Motorcycle.");
+      request->send(200, "text/plain", "Hi! I am ESP32 Interface for CPX Motorcycle. \nFirmware: " __FILE__ "\nCompiled: " __DATE__ " " __TIME__);
     });
 
     AsyncElegantOTA.begin(&server);    // Start ElegantOTA
@@ -105,7 +105,7 @@ void setup(void) {
 
   SerialBT.begin("ESP32_CPX");
 
-  float voltage = 0.0;        
+  float voltage = 0.0;
   pinMode(VOLTAGE_PIN, INPUT);
   voltage = ((analogRead(VOLTAGE_PIN)) * 0.00174 );
   Serial.print("Power Supply Voltage: "); Serial.println(voltage, 3);
@@ -151,9 +151,9 @@ void loop(void) {
       printf("\n");
       SerialBT.write(0x0D);
     }
-    delay(70);
+    //delay(70);
     //respond to sender
     //ESP32Can.CANWriteFrame(&rx_frame);
   }
-  //drd->loop();
+  drd->loop();
 }
