@@ -56,8 +56,6 @@ const int rx_queue_size = 10;       // Receive Queue size
 
 void setup(void) {
   Serial.begin(250000);
-  //SerialBT.begin("ESP32_CPX"); //Bluetooth device name
-  Serial.println("The device started, now you can pair it with bluetooth!");
   pinMode(LED_BUILTIN, OUTPUT);
   CAN_cfg.speed = CAN_SPEED_250KBPS;
   CAN_cfg.tx_pin_id = GPIO_NUM_5;
@@ -104,6 +102,7 @@ void setup(void) {
   }
 
   SerialBT.begin("ESP32_CPX");
+  Serial.println("The device started, now you can pair it with bluetooth!");
 
   float voltage = 0.0;
   pinMode(VOLTAGE_PIN, INPUT);
