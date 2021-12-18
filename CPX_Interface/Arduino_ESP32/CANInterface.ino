@@ -3,7 +3,7 @@ const char compile_date[] = __DATE__ " " __TIME__;
 #define ESP_DRD_USE_SPIFFS      false
 #define ESP_DRD_USE_EEPROM      true
 
-#define DOUBLERESETDETECTOR_DEBUG       true  //false
+#define DOUBLERESETDETECTOR_DEBUG       false  //false
 
 #include <ESP_DoubleResetDetector.h>    //https://github.com/khoih-prog/ESP_DoubleResetDetector
 #include <Arduino.h>
@@ -17,11 +17,10 @@ const char compile_date[] = __DATE__ " " __TIME__;
 // Number of seconds after reset during which a
 // subseqent reset will be considered a double reset.
 #define DRD_TIMEOUT 5
-
 // RTC Memory Address for the DoubleResetDetector to use
 #define DRD_ADDRESS 0
-
 DoubleResetDetector* drd;
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -30,6 +29,17 @@ uint8_t temprature_sens_read();
 }
 #endif
 uint8_t temprature_sens_read();
+float temp = 0.0;
+
+volatile int interruptCounter;
+hw_timer_t * timer = NULL;
+portMUX_TYPE timerMux = portMUX_INITIALIZER_UNLOCKED;
+
+void IRAM_ATTR onTimer0() {
+  portENTER_CRITICAL_ISR(&timerMux);
+  interruptCounter++;
+  portEXIT_CRITICAL_ISR(&timerMux);
+}
 
 #ifndef LED_BUILTIN
 #define LED_BUILTIN       2         // Pin D2 mapped to pin GPIO2/ADC12 of ESP32, control on-board LED
@@ -39,6 +49,7 @@ uint8_t temprature_sens_read();
 #define LED_ON      HIGH
 
 #define VOLTAGE_PIN 36
+float voltage = 0.0;
 
 const char* ssid = "ESP32_UPDATE";
 const char* password = "12345678";
@@ -57,6 +68,10 @@ const int rx_queue_size = 10;       // Receive Queue size
 void setup(void) {
   Serial.begin(250000);
   pinMode(LED_BUILTIN, OUTPUT);
+  timer = timerBegin(0, 40000, true);              // 40MHz Xtal clock
+  timerAttachInterrupt(timer, &onTimer0, true);
+  timerAlarmWrite(timer, 120000, true);            // 120000 = 60 seconds
+  timerAlarmEnable(timer);
   CAN_cfg.speed = CAN_SPEED_250KBPS;
   CAN_cfg.tx_pin_id = GPIO_NUM_5;
   CAN_cfg.rx_pin_id = GPIO_NUM_4;
@@ -104,20 +119,20 @@ void setup(void) {
   SerialBT.begin("ESP32_CPX");
   Serial.println("The device started, now you can pair it with bluetooth!");
 
-  float voltage = 0.0;
+
   pinMode(VOLTAGE_PIN, INPUT);
-  voltage = ((analogRead(VOLTAGE_PIN)) * 0.00174 );
-  Serial.print("Power Supply Voltage: "); Serial.println(voltage, 3);
   Serial.print("Compile timestamp: ");
   Serial.println(compile_date);
+  voltage = ((analogRead(VOLTAGE_PIN)) * 0.00174 );
+  Serial.print("Power Supply Voltage: "); Serial.println(voltage, 3);
   Serial.print("Internal Core Temperature: ");
   Serial.print((temprature_sens_read() - 32) / 1.8);
   Serial.println(" ºC");
   delay(4000);
-  SerialBT.print("Power Supply Voltage: ");
-  SerialBT.println(voltage, 3);
   SerialBT.print("Compile timestamp: ");
   SerialBT.println(compile_date);
+  SerialBT.print("Power Supply Voltage: ");
+  SerialBT.println(voltage, 3);
   SerialBT.print("Internal Core Temperature: ");
   SerialBT.print((temprature_sens_read() - 32) / 1.8);
   SerialBT.println(" C");
@@ -141,7 +156,7 @@ void loop(void) {
     }
     else {
       printf(" from 0x%04X, DLC %d, Data ", rx_frame.MsgID,  rx_frame.FIR.B.DLC);
-      SerialBT.write(rx_frame.MsgID);
+      SerialBT.print(rx_frame.MsgID, HEX);
       SerialBT.write(0x88);
       for (int i = 0; i < rx_frame.FIR.B.DLC; i++) {
         printf("0x%02X ", rx_frame.data.u8[i]);
@@ -155,4 +170,24 @@ void loop(void) {
     //ESP32Can.CANWriteFrame(&rx_frame);
   }
   drd->loop();
+  if (interruptCounter > 9 ) {             // 10 minutes pass
+    portENTER_CRITICAL(&timerMux);
+    interruptCounter = 0;
+    portEXIT_CRITICAL(&timerMux);
+    voltage = ((analogRead(VOLTAGE_PIN)) * 0.00174 );
+    if (voltage <= 4.0 || voltage >= 5.8 ) {
+      SerialBT.print("Power Supply Voltage: ");
+      SerialBT.println(voltage, 3);
+      //Serial.println(voltage, 3);
+      SerialBT.write(0x0D);
+    }
+    temp = ((temprature_sens_read() - 32) / 1.8);
+    if (temp >= 70.0) {
+      SerialBT.print("Internal Core Temperature: ");
+      SerialBT.print(temp);
+      //Serial.println(temp);
+      SerialBT.println(" C");
+      SerialBT.write(0x0D);
+    }
+  }
 }
