@@ -11,7 +11,7 @@ const char compile_date[] = __DATE__ " " __TIME__;
 #include <AsyncTCP.h>                   //https://github.com/me-no-dev/AsyncTCP
 #include <ESPAsyncWebServer.h>          //https://github.com/me-no-dev/ESPAsyncWebServer
 #include <AsyncElegantOTA.h>            //https://github.com/ayushsharma82/AsyncElegantOTA
-#include <ESP32CAN.h>                   //https://github.com/nhatuan84/arduino-esp32-can-demo
+#include <ESP32CAN.h>                   //https://github.com/miwagner/ESP32-Arduino-CAN
 #include <CAN_config.h>
 
 // Number of seconds after reset during which a
@@ -76,6 +76,25 @@ void setup(void) {
   CAN_cfg.tx_pin_id = GPIO_NUM_5;
   CAN_cfg.rx_pin_id = GPIO_NUM_4;
   CAN_cfg.rx_queue = xQueueCreate(rx_queue_size, sizeof(CAN_frame_t));
+
+  // Set CAN Filter
+  // See in the SJA1000 Datasheet chapter "6.4.15 Acceptance filter"
+  // and the APPLICATION NOTE AN97076 chapter "4.1.2 Acceptance Filter"
+  // for PeliCAN Mode
+  CAN_filter_t p_filter;
+  p_filter.FM = Single_Mode;
+
+  p_filter.ACR0 = 0x500;
+  p_filter.ACR1 = 0;
+  p_filter.ACR2 = 0;
+  p_filter.ACR3 = 0;
+
+  p_filter.AMR0 = 0x5FF;
+  p_filter.AMR1 = 0xFF;
+  p_filter.AMR2 = 0xFF;
+  p_filter.AMR3 = 0xFF;
+  ESP32Can.CANConfigFilter(&p_filter);
+
   // Init CAN Module
   ESP32Can.CANInit();
 
@@ -124,7 +143,7 @@ void setup(void) {
   Serial.print("Compile timestamp: ");
   Serial.println(compile_date);
   voltage = ((analogRead(VOLTAGE_PIN)) * 0.00174 );
-  Serial.print("Power Supply Voltage: "); Serial.println(voltage, 3);
+  Serial.print("Power Supply Voltage: "); Serial.print(voltage, 3); Serial.println(" V");
   Serial.print("Internal Core Temperature: ");
   Serial.print((temprature_sens_read() - 32) / 1.8);
   Serial.println(" ºC");
@@ -156,13 +175,16 @@ void loop(void) {
     }
     else {
       printf(" from 0x%04X, DLC %d, Data ", rx_frame.MsgID,  rx_frame.FIR.B.DLC);
-      SerialBT.print(rx_frame.MsgID, HEX);
+      SerialBT.write((rx_frame.MsgID >> 8) & 255);
+      SerialBT.write(rx_frame.MsgID & 255);
+      delay(1);
       SerialBT.write(0x88);
       for (int i = 0; i < rx_frame.FIR.B.DLC; i++) {
         printf("0x%02X ", rx_frame.data.u8[i]);
         SerialBT.write(rx_frame.data.u8[i]);
       }
       printf("\n");
+      delay(1);
       SerialBT.write(0x0D);
     }
     //delay(70);
@@ -178,14 +200,14 @@ void loop(void) {
     if (voltage <= 4.0 || voltage >= 5.8 ) {
       SerialBT.print("Power Supply Voltage: ");
       SerialBT.println(voltage, 3);
-      //Serial.println(voltage, 3);
+      Serial.println(voltage, 3);
       SerialBT.write(0x0D);
     }
     temp = ((temprature_sens_read() - 32) / 1.8);
     if (temp >= 70.0) {
       SerialBT.print("Internal Core Temperature: ");
       SerialBT.print(temp);
-      //Serial.println(temp);
+      Serial.println(temp);
       SerialBT.println(" C");
       SerialBT.write(0x0D);
     }
