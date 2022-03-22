@@ -152,35 +152,30 @@ void loop(void) {
   CAN_frame_t rx_frame;
   //receive next CAN frame from queue
   if (xQueueReceive(CAN_cfg.rx_queue, &rx_frame, 3 * portTICK_PERIOD_MS) == pdTRUE) {
-
     if (rx_frame.FIR.B.FF == CAN_frame_std) {
       //printf("New standard frame");
     } else {
       //printf("New extended frame");
     }
-
     if (rx_frame.FIR.B.RTR == CAN_RTR) {
       //printf(" RTR from 0x%04X, DLC %d\r\n", rx_frame.MsgID, rx_frame.FIR.B.DLC);
     } else {
-      if ((0x500 != rx_frame.MsgID) && (0x501 != rx_frame.MsgID) && (0x503 != rx_frame.MsgID) && (0x510 != rx_frame.MsgID)) {
+      if ((0x500 != rx_frame.MsgID) && (0x501 != rx_frame.MsgID) && (0x503 != rx_frame.MsgID) && (0x530 != rx_frame.MsgID)) {
         //printf(" from 0x%04X, DLC %d, Data ", rx_frame.MsgID, rx_frame.FIR.B.DLC);
         SerialBT.write((rx_frame.MsgID >> 8) & 255);
-        delay(5);
         SerialBT.write(rx_frame.MsgID & 255);
-        delay(20);
+        delay(2);
         SerialBT.write(0x88);
-        delay(20);
+        delay(2);
         for (int i = 0; i < rx_frame.FIR.B.DLC; i++) {
           //printf("0x%02X ", rx_frame.data.u8[i]);
           SerialBT.write(rx_frame.data.u8[i]);
         }
         //printf("\n");
-        delay(20);
         SerialBT.write(0x0D);
-        delay(20);
+        delay(2);
       }
     }
-    delay(70);
   }
   drd->loop();
   if (interruptCounter > 19) {  // 120 secs pass
@@ -195,7 +190,6 @@ void loop(void) {
     unsigned int t = temp * 10;
     byte T1 =  t >> 8;
     byte T2 =  t & 0xFF;
-    SerialBT.write(0x0D);
     SerialBT.write(0x05);
     SerialBT.write(0x50);
     SerialBT.write(0x88);
